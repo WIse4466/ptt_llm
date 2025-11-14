@@ -1,0 +1,17 @@
+[project]
+name = "ptt-llm"
+version = "0.1.0"
+description = "PTT Stock Daily Pulse Analyst"
+authors = [
+    {name = "wise4466",email = "91211wise@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "django (>=5.2.8,<6.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
