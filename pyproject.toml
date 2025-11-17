@@ -6,9 +6,10 @@ authors = [
     {name = "wise4466",email = "91211wise@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
-    "django (>=5.2.8,<6.0.0)"
+    "django (>=5.2.8,<6.0.0)",
+    "mysqlclient (>=2.2.7,<3.0.0)"
 ]
 
 

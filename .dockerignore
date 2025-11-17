@@ -1,0 +1,31 @@
+# Git
+.git
+.gitignore
+
+# Python / Poetry
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# VS Code / Editor
+.vscode
+.idea
+*.swp
+
+# Local Configuration & Secrets
+.env
+# (如果您的 .env 是用來設定 docker-compose 環境變數的，
+# 通常不建議 build 進 image 裡，而是透過 docker-compose 傳入)
+
+# Database
+db.sqlite3
+mariadb_data/
+
+# OS Generated
+.DS_Store
+Thumbs.db

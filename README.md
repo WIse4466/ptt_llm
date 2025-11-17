@@ -4,7 +4,7 @@
 
 ## 開發環境啟用（Development）
 
-本專案使用 Poetry 管理依賴與虛擬環境。
+本專案支援 Docker 快速啟用與本地 Poetry 開發模式。
 
 ### 1. 安裝依賴（首次啟用）
 
@@ -18,11 +18,14 @@ poetry install --no-root
 ```
 
 ### 2. 啟用服務
+#### 使用 Docker
+此指令會自動
+1. 啟動 MariaDB 資料庫。
+2. 執行 migrate 同步資料庫結構。
+3. 啟動 Django 開發伺服器。
 ```bash
-# 遷移並同步資料庫 建立 Django 所需的資料表
-poetry run python manage.py migrate
+docker compose up --build
 ```
-```bash
-# 運行伺服器 即時預覽
-poetry run python manage.py runserver
-```
+啟動成功後，請在瀏覽器開啟：http://localhost:8000
+
+注意：若要停止服務，請在終端機按下 Ctrl + C。
