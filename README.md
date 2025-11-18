@@ -29,3 +29,5 @@ docker compose up --build
 啟動成功後，請在瀏覽器開啟：http://localhost:8000
 
 注意：若要停止服務，請在終端機按下 Ctrl + C。
+
+參考自: https://ithelp.ithome.com.tw/users/20172834/ironman/8156
