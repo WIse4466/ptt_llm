@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'article',
 ]
 
 MIDDLEWARE = [
@@ -76,11 +77,11 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.getenv('MYSQL_DATABASE', 'my_database'),
+        'NAME': os.getenv('MYSQL_DATABASE', 'mydatabase'),
         'USER': os.getenv('MYSQL_USER', 'ptt_rag'),
         'PASSWORD': os.getenv('MYSQL_PASSWORD', 'ptt_rag'),
         'HOST': os.getenv('MYSQL_HOST', '127.0.0.1'),
-        'PORT': os.getenv('MYSQL_PORT', '3307'),
+        'PORT': os.getenv('MYSQL_PORT', '3306'),
     }
 }
 
