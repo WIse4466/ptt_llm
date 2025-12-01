@@ -11,3 +11,16 @@ class Article(models.Model):
 
     def __str__(self):
         return f"[{self.board}] {self.title}"
+    
+class Comment(models.Model):
+    # ForeignKey 連結到 Article，當文章被刪除時，推文也會一起刪除 (CASCADE)
+    # related_name='comments' 讓我們可以用 article.comments.all() 取得該文章所有推文
+    article = models.ForeignKey(Article, on_delete=models.CASCADE, related_name='comments')
+
+    tag = models.CharField(max_length=10)           # 推、噓、箭頭
+    user_id = models.CharField(max_length=100)      # 推文者 ID
+    content = models.TextField()                    # 推文內容
+    ip_datetime = models.CharField(max_length=100)  # 推文時間/IP
+
+    def __str__(self):
+        return f"{self.tag} {self.user_id}: {self.content}"

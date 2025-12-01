@@ -1,33 +1,94 @@
-# ptt_llm
+# PTT LLM 專案
+
+本專案使用 Django、Celery 與 Docker，建立一個可定時爬取 PTT 特定看板文章、留言並存入資料庫的系統。
 
 ---
 
-## 開發環境啟用（Development）
+## 需求
 
-本專案支援 Docker 快速啟用與本地 Poetry 開發模式。
+- Docker
+- Docker Compose
 
-### 1. 安裝依賴（首次啟用）
+---
 
-如果您是第一次（或 `git pull` 更新後）
-使用本專案，請先安裝/同步所有依賴套件。
+## 快速啟動
+
+1. **啟動所有服務**
+
+   在專案根目錄執行以下指令，即可透過 Docker Compose 一次性建置並啟動所有服務（包含網站、資料庫、Redis、Celery Worker 和 Celery Beat 排程器）。
+
+   ```bash
+   docker compose up --build -d
+   ```
+   - `--build`：在初次啟動或修改過程式碼後，強制重新建置映像檔。
+   - `-d`：在背景執行服務。
+
+2. **查看服務狀態**
+
+   使用此指令來確認所有容器是否正常運行（狀態應為 `running` 或 `healthy`）。
+
+   ```bash
+   docker compose ps
+   ```
+
+3. **停止所有服務**
+
+   當您想停止專案時，執行以下指令：
+
+   ```bash
+   docker compose down
+   ```
+
+---
+
+## 如何使用
+
+### 查看日誌
+
+您可以查看特定服務的日誌來了解其運行狀況或進行除錯。
 
 ```bash
-# 我們使用 --no-root，因為這是一個「應用程式」而非「套件」
-# 這會讀取 poetry.lock 檔案，並安裝所有依賴
-poetry install --no-root
+# 查看 Web 服務日誌
+docker compose logs django_web
+
+# 即時追蹤 Celery Worker 日誌
+docker compose logs -f celery
+
+# 查看 Celery Beat 排程日誌
+docker compose logs -f celery-beat
 ```
 
-### 2. 啟用服務
-#### 使用 Docker
-此指令會自動
-1. 啟動 MariaDB 資料庫。
-2. 執行 migrate 同步資料庫結構。
-3. 啟動 Django 開發伺服器。
+### 執行 Django 管理指令
+
+當您需要執行 `makemigrations` 或 `createsuperuser` 等指令時，建議進入 `django_web` 容器中執行，以確保環境一致。
+
 ```bash
-docker compose up --build
+# 1. 進入 django_web 容器的 shell
+docker exec -it django_web sh
+
+# 2. 在容器內執行您需要的指令
+# 例如：建立新的資料庫遷移檔案
+python manage.py makemigrations
+
+# 例如：建立後台管理員帳號
+python manage.py createsuperuser
+
+# 3. 完成後，輸入 exit 即可退出容器
+exit
 ```
-啟動成功後，請在瀏覽器開啟：http://localhost:8000
 
-注意：若要停止服務，請在終端機按下 Ctrl + C。
+### 手動觸發爬蟲測試
 
-參考自: https://ithelp.ithome.com.tw/users/20172834/ironman/8156
+如果您想立即執行一次爬蟲任務而不等待排程，可以進入 `celery` 容器來手動執行。
+
+```bash
+# 1. 進入 celery 容器的 shell
+docker exec -it celery sh
+
+# 2. 在容器內執行 scraper.py 腳本
+# 這會爬取 Stock 板塊作為測試
+python celery_app/scraper.py
+
+# 3. 完成後，輸入 exit 即可退出容器
+exit
+```

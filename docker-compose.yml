@@ -11,7 +11,10 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - mariadb
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       - MYSQL_DATABASE=mydatabase
       - MYSQL_USER=ptt_rag
@@ -23,6 +26,11 @@ services:
     image: mariadb:11.7.2
     container_name: my_mariadb
     restart: always
+    healthcheck:
+      test: ["CMD", "mariadb-admin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     environment:
       - MYSQL_DATABASE=mydatabase
       - MYSQL_USER=ptt_rag
@@ -32,3 +40,55 @@ services:
       - "3306:3306"
     volumes:
       - ./mariadb_data:/var/lib/mysql
+
+  redis:
+    image: redis:latest
+    container_name: my_redis
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "6379:6379"
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: celery_worker
+    command: celery -A config worker -l info
+    volumes:
+      - .:/app
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - MYSQL_DATABASE=mydatabase
+      - MYSQL_USER=ptt_rag
+      - MYSQL_PASSWORD=ptt_rag
+      - MYSQL_HOST=mariadb
+      - MYSQL_PORT=3306
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: celery_beat
+    command: celery -A config beat -l info
+    volumes:
+      - .:/app
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - MYSQL_DATABASE=mydatabase
+      - MYSQL_USER=ptt_rag
+      - MYSQL_PASSWORD=ptt_rag
+      - MYSQL_HOST=mariadb
+      - MYSQL_PORT=3306
