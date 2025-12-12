@@ -40,6 +40,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'article',
     'log_app',
+    'rest_framework', # DRF 核心
+    'django_filters', # 過濾器
+    'drf_spectacular', # API 文件
 ]
 
 MIDDLEWARE = [
@@ -127,3 +130,11 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+REST_FRAMEWORK = {
+    # 設定 API 文件產生器使用 drf-spectacular
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    # 設定預設分頁 (雖然 View 裡有寫，但全域設定是好習慣)
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
+    'PAGE_SIZE': 50,
+}
