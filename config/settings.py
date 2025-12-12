@@ -138,3 +138,19 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
     'PAGE_SIZE': 50,
 }
+
+# ---------------------------------------------------------
+# Celery 設定
+# ---------------------------------------------------------
+
+REDIS_HOST = os.getenv('REDIS_HOST', '127.0.0.1')
+
+CELERY_BROKER_URL = f'redis://{REDIS_HOST}:6379/0'
+CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:6379/0'
+
+# 設定時區，避免排程時間錯亂
+CELERY_TIMEZONE = 'Asia/Taipei'
+# 讓 Celery 顯示任務啟動狀態
+CELERY_TASK_TRACK_STARTED = True
+# 設定任務超時時間 (例如 30 分鐘)，避免卡死
+CELERY_TASK_TIME_LIMIT = 30 * 60
