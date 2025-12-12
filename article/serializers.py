@@ -1,11 +1,23 @@
 from rest_framework import serializers
-from .models import Article
+from .models import Article, Comment
+
+class CommentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Comment
+        # 只顯示我們感興趣的欄位
+        fields = ['tag', 'user_id', 'content', 'ip_datetime']
 
 # 1. 文章資料序列化 (負責將資料庫內容轉成 JSON 回傳給前端)
 class ArticleSerializer(serializers.ModelSerializer):
+    # 【關鍵修改】顯式宣告 comments 欄位
+    # many=True: 因為一篇文章有多則推文
+    # read_only=True: 我們只讀取，不透過這個 API 修改推文
+    comments = CommentSerializer(many=True, read_only=True)
+
     class Meta:
         model = Article
-        fields = '__all__'
+        # 雖然寫了 __all__，但加上面的宣告後，comments 就會被包含進去了
+        fields = ['id', 'board', 'title', 'author', 'post_time', 'url', 'content', 'comments']
 
 # 2. 查詢參數序列化 (負責驗證 GET 請求的參數，如 author_name, start_date 等)
 class ArticleListRequestSerializer(serializers.Serializer):
