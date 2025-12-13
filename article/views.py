@@ -8,7 +8,8 @@ from rest_framework.pagination import LimitOffsetPagination
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse, inline_serializer
 
 from .models import Article
-from .serializers import ArticleSerializer, ArticleListRequestSerializer
+from .serializers import ArticleSerializer, ArticleListRequestSerializer, QueryRequestSerializer
+from .rag_query import run_rag_query
 from log_app.models import Log
 
 # --- 提取出來的共用篩選邏輯 ---
@@ -140,3 +141,34 @@ class ArticleStatisticsView(APIView):
         total_articles = articles.count()
         
         return Response({"total_articles": total_articles})
+    
+# [新增] 搜尋 API View
+class SearchAPIView(APIView):
+    @extend_schema(
+        methods=["POST"],
+        summary="AI 語意搜尋",
+        description="輸入問題 (question) 與檢索數量 (top_k)，系統會透過 RAG 流程搜尋相關文章並由 Gemini 生成回答。",
+        request=QueryRequestSerializer,
+        responses={200: QueryRequestSerializer}
+    )
+    def post(self, request):
+        # 1. 驗證輸入參數
+        serializer = QueryRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            Log.objects.create(level='ERROR', category='user-search', message='查詢參數不合法')
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        question = serializer.validated_data.get("question")
+        top_k = serializer.validated_data.get("top_k")
+        
+        # 2. 呼叫我們封裝好的 RAG 服務
+        result = run_rag_query(question, top_k)
+        
+        # 3. 處理錯誤
+        if "error" in result:
+            return Response(result, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        # 4. 回傳結果
+        # 使用 Serializer 進行輸出格式化
+        response_serializer = QueryRequestSerializer(instance=result)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)

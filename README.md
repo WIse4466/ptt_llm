@@ -1,94 +1,169 @@
-# PTT LLM 專案
 
-本專案使用 Django、Celery 與 Docker，建立一個可定時爬取 PTT 特定看板文章、留言並存入資料庫的系統。
+-----
 
----
+# PTT LLM - PTT 輿情分析與 RAG 智慧問答系統
 
-## 需求
+本專案是一個結合 **爬蟲 (Web Scraping)**、**向量資料庫 (Vector DB)** 與 **生成式 AI (GenAI)** 的全端應用程式。
 
-- Docker
-- Docker Compose
+系統會自動定時爬取 PTT 特定看板（如 Stock、Gossiping）的文章，將其儲存於 MariaDB，並透過 Embedding 模型轉為向量存入 Pinecone。使用者可以透過 API 詢問問題，系統將利用 **RAG (Retrieval-Augmented Generation)** 技術檢索相關文章，並由 Google Gemini 模型生成精準回答。
 
----
+## ✨ 主要功能
 
-## 快速啟動
+  * **自動化爬蟲**：使用 Celery Beat 定時爬取 PTT 熱門看板文章與留言。
+  * **非同步任務處理**：透過 Celery + Redis 處理爬蟲與向量化任務，避免阻塞網站運作。
+  * **RAG 語意搜尋**：整合 LangChain 與 Pinecone，實現精準的文章語意檢索。
+  * **AI 智慧問答**：串接 Google Gemini (Flash) 模型，根據爬取的輿情資料回答使用者問題。
+  * **RESTful API**：使用 Django REST Framework 開發，並提供 Swagger 自動化文件。
+  * **容器化部署**：支援 Docker Compose 一鍵部署所有服務 (Django, MariaDB, Redis, Celery)。
 
-1. **啟動所有服務**
+## 🛠️ 技術堆疊
 
-   在專案根目錄執行以下指令，即可透過 Docker Compose 一次性建置並啟動所有服務（包含網站、資料庫、Redis、Celery Worker 和 Celery Beat 排程器）。
+  * **Backend**: Django, Django REST Framework
+  * **Database**: MariaDB (SQL), Pinecone (Vector)
+  * **Task Queue**: Celery, Redis
+  * **AI / LLM**: Google Gemini API, LangChain
+  * **DevOps**: Docker, Docker Compose, Poetry
 
-   ```bash
-   docker compose up --build -d
-   ```
-   - `--build`：在初次啟動或修改過程式碼後，強制重新建置映像檔。
-   - `-d`：在背景執行服務。
+-----
 
-2. **查看服務狀態**
+## 🚀 快速啟動 (Quick Start)
 
-   使用此指令來確認所有容器是否正常運行（狀態應為 `running` 或 `healthy`）。
+### 1\. 環境變數設定
 
-   ```bash
-   docker compose ps
-   ```
+在專案根目錄建立 `.env` 檔案，並填入以下必要資訊：
 
-3. **停止所有服務**
+```ini
+# Database & Redis
+MYSQL_ROOT_PASSWORD=secret
+MYSQL_DATABASE=ptt_llm
+MYSQL_USER=user
+MYSQL_PASSWORD=password
+REDIS_HOST=redis
 
-   當您想停止專案時，執行以下指令：
+# Google Gemini API (前往 Google AI Studio 申請)
+GOOGLE_API_KEY=your_google_api_key_here
+GOOGLE_EMBEDDINGS_MODEL=models/embedding-001
 
-   ```bash
-   docker compose down
-   ```
+# Pinecone Vector DB (前往 Pinecone Console 申請)
+PINECONE_API_KEY=your_pinecone_api_key_here
+PINECONE_INDEX_NAME=your_index_name
+```
 
----
+### 2\. 啟動所有服務
 
-## 如何使用
-
-### 查看日誌
-
-您可以查看特定服務的日誌來了解其運行狀況或進行除錯。
+執行以下指令，透過 Docker Compose 建置並啟動所有容器：
 
 ```bash
-# 查看 Web 服務日誌
-docker compose logs django_web
+docker compose up --build -d
+```
 
-# 即時追蹤 Celery Worker 日誌
+  * `--build`：強制重新建置映像檔（確保 Python 套件為最新）。
+  * `-d`：在背景執行。
+
+### 3\. 確認服務狀態
+
+確保所有容器狀態皆為 `Up` 或 `healthy`：
+
+```bash
+docker compose ps
+```
+
+-----
+
+## 📖 API 使用說明
+
+服務啟動後，您可以透過瀏覽器訪問 Swagger UI 進行測試。
+
+  * **Swagger 文件網址**：[http://127.0.0.1:8000/api/schema/doc/](http://127.0.0.1:8000/api/schema/doc/)
+
+### 🔥 核心功能：AI 語意搜尋
+
+  * **Endpoint**: `POST /api/search/`
+  * **功能**：輸入問題，系統會檢索資料庫並回傳 AI 整理的答案及參考文章。
+  * **範例請求 (JSON)**：
+    ```json
+    {
+      "question": "最近大家對輝達(Nvidia)的看法如何？",
+      "top_k": 3
+    }
+    ```
+
+-----
+
+## 🔧 開發與維護指令
+
+### 查看日誌 (Logs)
+
+```bash
+# 查看 Django 網站日誌 (API 錯誤看這裡)
+docker compose logs -f web
+
+# 查看 Celery Worker 日誌 (爬蟲與向量化進度看這裡)
 docker compose logs -f celery
 
-# 查看 Celery Beat 排程日誌
+# 查看 Celery Beat 排程日誌 (確認排程觸發看這裡)
 docker compose logs -f celery-beat
 ```
 
-### 執行 Django 管理指令
+### 資料庫遷移與管理
 
-當您需要執行 `makemigrations` 或 `createsuperuser` 等指令時，建議進入 `django_web` 容器中執行，以確保環境一致。
+建議使用 `docker compose exec` 進入容器執行 Django 指令：
 
 ```bash
-# 1. 進入 django_web 容器的 shell
-docker exec -it django_web sh
+# 建立資料庫遷移檔
+docker compose exec web python manage.py makemigrations
 
-# 2. 在容器內執行您需要的指令
-# 例如：建立新的資料庫遷移檔案
-python manage.py makemigrations
+# 執行遷移 (更新資料庫結構)
+docker compose exec web python manage.py migrate
 
-# 例如：建立後台管理員帳號
-python manage.py createsuperuser
-
-# 3. 完成後，輸入 exit 即可退出容器
-exit
+# 建立後台管理員 (Superuser)
+docker compose exec web python manage.py createsuperuser
 ```
 
 ### 手動觸發爬蟲測試
 
-如果您想立即執行一次爬蟲任務而不等待排程，可以進入 `celery` 容器來手動執行。
+如果您不想等待排程，可以手動觸發 Celery 任務：
+
+1.  進入 Django Shell：
+
+    ```bash
+    docker compose exec web python manage.py shell
+    ```
+
+2.  輸入 Python 程式碼手動發送任務：
+
+    ```python
+    from celery_app.tasks import period_send_ptt_scrape_task
+    # 非同步執行任務
+    period_send_ptt_scrape_task.delay()
+    exit()
+    ```
+
+### 停止服務
 
 ```bash
-# 1. 進入 celery 容器的 shell
-docker exec -it celery sh
+docker compose down
+```
 
-# 2. 在容器內執行 scraper.py 腳本
-# 這會爬取 Stock 板塊作為測試
-python celery_app/scraper.py
+### 檢視可用模型
+```bash
+docker compose exec web pip show langchain-google-genai
+```
+-----
 
-# 3. 完成後，輸入 exit 即可退出容器
-exit
+## 📁 專案結構
+
+```text
+.
+├── article/             # Django App: 文章模型、爬蟲邏輯、RAG 搜尋
+│   ├── scraper.py       # PTT 爬蟲主程式
+│   ├── rag_query.py     # RAG (Pinecone + Gemini) 核心邏輯
+│   └── views.py         # API Views
+├── celery_app/          # Celery 任務定義
+│   ├── tasks.py         # 排程任務入口
+│   └── data_processing.py # 向量化處理任務
+├── config/              # Django 專案設定 (Settings, Celery config)
+├── docker-compose.yml   # Docker 服務編排
+├── Dockerfile           # Python 環境建置
+└── pyproject.toml       # Poetry 套件管理
 ```

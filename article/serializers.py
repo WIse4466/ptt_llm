@@ -27,3 +27,20 @@ class ArticleListRequestSerializer(serializers.Serializer):
     end_date = serializers.DateField(help_text="結束日期", write_only=True, required=False)
     limit = serializers.IntegerField(help_text="每頁返回的筆數 (預設 50)", write_only=True, default=50, min_value=1)
     offset = serializers.IntegerField(help_text="從第幾筆開始 (預設 0)", write_only=True, required=False, min_value=0)
+
+# --- [新增] RAG 搜尋用的 Serializer ---
+class QueryRequestSerializer(serializers.Serializer):
+    # 輸入欄位
+    question = serializers.CharField(help_text="查詢內容", required=True, max_length=100, min_length=1)
+    top_k = serializers.IntegerField(
+        help_text="控制查詢的文章片段數量 (預設 3)", 
+        default=3, 
+        write_only=True, 
+        min_value=1, 
+        max_value=10
+    )
+
+    # 輸出欄位 (唯讀)
+    answer = serializers.CharField(required=False, read_only=True)
+    # 這裡重用 ArticleSerializer 來格式化相關文章
+    related_articles = ArticleSerializer(many=True, read_only=True)

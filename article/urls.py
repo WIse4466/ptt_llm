@@ -10,4 +10,7 @@ urlpatterns = [
     
     # 統計 API
     path('statistics/', views.ArticleStatisticsView.as_view(), name='article-statistics'),
+
+    # 搜尋 API
+    path('search/', views.SearchAPIView.as_view(), name='article-search'),
 ]
