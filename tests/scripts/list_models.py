@@ -1,7 +1,12 @@
 import os
 import django
 import sys
+from pathlib import Path
 import google.generativeai as genai
+
+# 加入專案根目錄
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(BASE_DIR))
 
 # 1. 設定 Django 環境
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')

@@ -1,8 +1,13 @@
 import os
 import django
 import sys
+from pathlib import Path
 
-# 修正：確保模型名稱與我們發現的可用模型一致
+# 修正：將專案根目錄加入 Python 搜尋路徑
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(BASE_DIR))
+
+# 1. 關鍵：手動設定環境變數，確保模型名稱正確
 os.environ['GOOGLE_EMBEDDINGS_MODEL'] = "models/gemini-embedding-001"
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 django.setup()
