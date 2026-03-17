@@ -1,9 +1,10 @@
 import traceback
 import asyncio
+import google.generativeai as genai
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone
 from langchain_core.prompts import PromptTemplate
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from pydantic import SecretStr
 from article.models import Article
 from log_app.models import Log
@@ -11,30 +12,54 @@ from env_settings import EnvSettings
 
 env_settings = EnvSettings()
 
+class SafeGoogleEmbeddings:
+    """
+    自定義 Embedding 類別，直接呼叫 Google SDK 以確保維度縮減 (Dimension Reduction)。
+    這解決了 LangChain 整合包在某些版本中可能不傳遞 output_dimensionality 參數的問題。
+    """
+    def __init__(self, api_key, model="models/gemini-embedding-001"):
+        self.model = model
+        genai.configure(api_key=api_key)
+
+    def embed_documents(self, texts):
+        # 批量處理
+        results = genai.embed_content(
+            model=self.model,
+            content=texts,
+            task_type="retrieval_document",
+            output_dimensionality=768 # 強制 768 維度，配合您的 Pinecone 索引
+        )
+        return results['embeddings']
+
+    def embed_query(self, text):
+        # 單筆處理
+        result = genai.embed_content(
+            model=self.model,
+            content=text,
+            task_type="retrieval_query",
+            output_dimensionality=768 # 強制 768 維度，配合您的 Pinecone 索引
+        )
+        return result['embedding']
+
 def run_rag_query(question, top_k):
     """
-    執行 RAG 流程：
-    1. 將問題轉向量 -> 搜尋 Pinecone
-    2. 找出對應的 MariaDB 文章
-    3. 組合 Prompt -> 呼叫 Gemini 生成回答
+    執行 RAG 流程。
     """
-    
     # 1. 搜尋 Pinecone
     try:
-        # 解決 Django 環境下 asyncio loop 的問題
         try:
             asyncio.get_running_loop()
         except RuntimeError:
             asyncio.set_event_loop(asyncio.new_event_loop())
 
+        # 使用自定義的 SafeGoogleEmbeddings 確保維度與 Pinecone Index (768) 匹配
+        embeddings = SafeGoogleEmbeddings(api_key=env_settings.GOOGLE_API_KEY)
+
         vector_store = PineconeVectorStore(
             index=Pinecone(api_key=env_settings.PINECONE_API_KEY).Index(env_settings.PINECONE_INDEX_NAME),
-            embedding=GoogleGenerativeAIEmbeddings(
-                model=env_settings.GOOGLE_EMBEDDINGS_MODEL,
-                google_api_key=SecretStr(env_settings.GOOGLE_API_KEY)
-            )
+            embedding=embeddings
         )
-        # 執行相似度搜尋
+        
         top_k_results = vector_store.similarity_search_with_score(question, k=top_k)
     
     except Exception as e:
@@ -44,23 +69,19 @@ def run_rag_query(question, top_k):
 
     # 2. 從資料庫撈取文章內容
     try:
-        # 從 metadata 取出 article_id
         match_ids = [match[0].metadata['article_id'] for match in top_k_results]
-        
-        # 這裡要注意順序：Pinecone 回傳的順序是依相似度排序，但 SQL filter(id__in=...) 不保證順序
-        # 為了精準度，我們先撈出來，再依照 match_ids 的順序排好
         articles_queryset = Article.objects.filter(id__in=match_ids)
         articles_dict = {a.id: a for a in articles_queryset}
         related_articles = [articles_dict[mid] for mid in match_ids if mid in articles_dict]
 
-        # 組合給 LLM 看的文本 (避免過長，簡單截斷)
-        merge_text = "\n".join(
-            [f"標題:{a.title}\n內文:{a.content[:500]}..." for a in related_articles]
-        )
-        
-        # 簡單的防呆，避免爆 Token
-        if len(merge_text) > 100000:
-            return {"error": "檢索到的文章總字數過長，請減少 top_k"}
+        if not related_articles:
+            return {
+                "question": question,
+                "answer": "抱歉，資料庫中目前沒有相關討論。",
+                "related_articles": []
+            }
+
+        merge_text = "\n".join([f"標題:{a.title}\n內文:{a.content[:500]}..." for a in related_articles])
 
     except Exception as e:
         error_msg = f"資料庫撈取文章失敗: {e}"
@@ -69,18 +90,17 @@ def run_rag_query(question, top_k):
 
     # 3. 呼叫 Gemini 生成回答
     try:
-        # 注意：建議先用 gemini-1.5-flash 比較穩定，若您有 2.0 權限可改為 gemini-2.0-flash
+        # 使用您指定的具有配額的模型
         model = ChatGoogleGenerativeAI(
-            model="gemini-flash-latest",
-            temperature=0.3, # 稍微有點創造力但不要太發散
-            google_api_key=env_settings.GOOGLE_API_KEY,
+            model="models/gemini-3.1-flash-lite-preview",
+            temperature=0.3,
+            google_api_key=SecretStr(env_settings.GOOGLE_API_KEY),
         )
         
         prompt = PromptTemplate(
             input_variables=["merge_text", "question"],
             template="""
             你是一個專業的 PTT 輿情分析師。請根據以下 PTT 文章內容，用繁體中文回答使用者的問題。
-            如果文章內容沒有提到相關資訊，請直接回答「找不到相關討論」。
             
             --- 參考文章 ---
             {merge_text}
@@ -92,15 +112,13 @@ def run_rag_query(question, top_k):
         
         chain = prompt | model
         response = chain.invoke({"merge_text": merge_text, "question": question})
-        answer = response.content
-
         return {
             "question": question,
-            "answer": answer,
-            "related_articles": related_articles # 直接回傳 Model 物件列表，Serializer 會處理
+            "answer": response.content,
+            "related_articles": related_articles
         }
 
     except Exception as e:
-        error_msg = f"LLM 生成回答失敗: {e}"
+        error_msg = f"LLM 錯誤: {e}"
         Log.objects.create(level='ERROR', category='rag-llm', message=error_msg, traceback=traceback.format_exc())
         return {"error": error_msg}

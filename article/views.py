@@ -1,6 +1,8 @@
 from datetime import datetime, time
 import traceback
 
+from django.db.models import Count
+from django.db.models.functions import TruncDate
 from rest_framework import status, serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -89,7 +91,7 @@ class ArticleListView(APIView):
         serializer = ArticleSerializer(paginated_queryset, many=True)
         return paginator.get_paginated_response(serializer.data)
 
-# --- 2. 單篇文章詳情 API (新增) ---
+# --- 2. 單篇文章詳情 API ---
 class ArticleDetailView(APIView):
     @extend_schema(
         description="根據文章 ID 取得特定文章的詳細內容。",
@@ -114,10 +116,10 @@ class ArticleDetailView(APIView):
             
         return Response(ArticleSerializer(article).data, status=status.HTTP_200_OK)
 
-# --- 3. 文章統計 API (新增) ---
+# --- 3. 文章統計 API ---
 class ArticleStatisticsView(APIView):
     @extend_schema(
-        description="取得文章統計資訊，支援時間範圍、作者名稱和版面過濾",
+        description="取得文章統計資訊，包括總數、看板分佈與每日發文趨勢。",
         parameters=[
             OpenApiParameter("author_name", str, OpenApiParameter.QUERY, description="篩選特定發文者的文章"),
             OpenApiParameter("board_name", str, OpenApiParameter.QUERY, description="篩選特定版面的文章"),
@@ -125,7 +127,16 @@ class ArticleStatisticsView(APIView):
             OpenApiParameter("end_date", str, OpenApiParameter.QUERY, description="篩選結束日期 (YYYY-MM-DD)"),
         ],
         responses={
-            200: OpenApiResponse(response={"type": "object", "properties": {"total_articles": {"type": "integer"}}}),
+            200: OpenApiResponse(
+                response=inline_serializer(
+                    name='ArticleStatisticsResponse',
+                    fields={
+                        'total_articles': serializers.IntegerField(),
+                        'board_distribution': serializers.ListField(child=serializers.DictField()),
+                        'daily_counts': serializers.ListField(child=serializers.DictField()),
+                    }
+                )
+            ),
             400: OpenApiResponse(response={"type": "object", "properties": {"error": {"type": "string"}}}),
         }
     )
@@ -136,13 +147,28 @@ class ArticleStatisticsView(APIView):
             Log.objects.create(level='ERROR', category='user-posts-stats', message='查詢參數不合法')
             return Response(request_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             
-        # 複用篩選邏輯，但這次我們只需要 count()
         articles = articles_filter(request_serializer)
+        
         total_articles = articles.count()
         
-        return Response({"total_articles": total_articles})
-    
-# [新增] 搜尋 API View
+        # 看板分佈
+        board_distribution = list(articles.values('board').annotate(count=Count('id')).order_by('-count'))
+        
+        # 每日發文趨勢
+        daily_counts = list(
+            articles.annotate(date=TruncDate('post_time'))
+            .values('date')
+            .annotate(count=Count('id'))
+            .order_by('date')
+        )
+        
+        return Response({
+            "total_articles": total_articles,
+            "board_distribution": board_distribution,
+            "daily_counts": daily_counts
+        })
+
+# --- 4. 搜尋 API View ---
 class SearchAPIView(APIView):
     @extend_schema(
         methods=["POST"],

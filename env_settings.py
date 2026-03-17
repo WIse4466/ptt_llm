@@ -8,7 +8,7 @@ class EnvSettings(BaseSettings):
     GOOGLE_API_KEY: str = None
     PINECONE_API_KEY: str = None
     PINECONE_INDEX_NAME: str = None
-    GOOGLE_EMBEDDINGS_MODEL: str = "models/text-embedding-004"
+    GOOGLE_EMBEDDINGS_MODEL: str = "models/gemini-embedding-001"
 
     model_config = SettingsConfigDict(
         env_file=BASE_DIR / '.env',
